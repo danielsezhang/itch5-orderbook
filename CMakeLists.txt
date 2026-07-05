@@ -6,7 +6,6 @@ option(ITCH_BUILD_BENCHMARKS "Build latency benchmarks" ON)
 
 add_library(itch_book
   src/mapped_file.cpp
-  src/parser.cpp
   src/order_book.cpp
   src/order_pool.cpp
 )

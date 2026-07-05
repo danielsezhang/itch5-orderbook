@@ -5,6 +5,8 @@
 
 namespace itch {
 
+// Read-only memory mapping of a feed file, so the parser reads messages straight out of the
+// page cache with no intermediate buffer. Throws std::system_error naming the failed call.
 class MappedFile {
  public:
   explicit MappedFile(const std::filesystem::path& path);
@@ -18,6 +20,8 @@ class MappedFile {
   [[nodiscard]] std::size_t size() const noexcept { return size_; }
 
  private:
+  void reset() noexcept;
+
   int fd_{-1};
   const std::byte* data_{nullptr};
   std::size_t size_{};

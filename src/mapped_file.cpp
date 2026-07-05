@@ -5,33 +5,51 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <stdexcept>
+#include <cerrno>
+#include <system_error>
 #include <utility>
 
 namespace itch {
+namespace {
+
+[[noreturn]] void fail(const char* operation, const std::filesystem::path& path) {
+  throw std::system_error(errno, std::generic_category(),
+                          std::string(operation) + " " + path.string());
+}
+
+}  // namespace
 
 MappedFile::MappedFile(const std::filesystem::path& path) {
   fd_ = open(path.c_str(), O_RDONLY);
-  if (fd_ == -1) {
-    throw std::runtime_error("unable to open ITCH file");
-  }
+  if (fd_ == -1) fail("open", path);
   struct stat status {};
-  if (fstat(fd_, &status) == -1 || status.st_size == 0) {
-    close(fd_);
-    throw std::runtime_error("unable to stat non-empty ITCH file");
+  if (fstat(fd_, &status) == -1) {
+    reset();
+    fail("fstat", path);
+  }
+  if (status.st_size == 0) {
+    reset();
+    throw std::runtime_error("empty ITCH file " + path.string());
   }
   size_ = static_cast<std::size_t>(status.st_size);
-  data_ = static_cast<const std::byte*>(mmap(nullptr, size_, PROT_READ, MAP_PRIVATE, fd_, 0));
-  if (data_ == MAP_FAILED) {
-    close(fd_);
-    data_ = nullptr;
-    throw std::runtime_error("unable to mmap ITCH file");
+  void* mapping = mmap(nullptr, size_, PROT_READ, MAP_PRIVATE, fd_, 0);
+  if (mapping == MAP_FAILED) {
+    reset();
+    fail("mmap", path);
   }
+  data_ = static_cast<const std::byte*>(mapping);
+  // Hint the kernel to read ahead aggressively: the parser walks the file front to back once.
+  madvise(mapping, size_, MADV_SEQUENTIAL);
 }
 
-MappedFile::~MappedFile() {
+MappedFile::~MappedFile() { reset(); }
+
+void MappedFile::reset() noexcept {
   if (data_ != nullptr) munmap(const_cast<std::byte*>(data_), size_);
   if (fd_ != -1) close(fd_);
+  fd_ = -1;
+  data_ = nullptr;
+  size_ = 0;
 }
 
 MappedFile::MappedFile(MappedFile&& other) noexcept
@@ -41,7 +59,7 @@ MappedFile::MappedFile(MappedFile&& other) noexcept
 
 MappedFile& MappedFile::operator=(MappedFile&& other) noexcept {
   if (this != &other) {
-    this->~MappedFile();
+    reset();
     fd_ = std::exchange(other.fd_, -1);
     data_ = std::exchange(other.data_, nullptr);
     size_ = std::exchange(other.size_, 0);
