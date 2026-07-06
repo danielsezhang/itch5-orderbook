@@ -1,142 +1,139 @@
 #include "itch/order_pool.hpp"
 
+#include <algorithm>
 #include <new>
-#include <stdexcept>
 
 #include <sys/mman.h>
 
 namespace itch {
 namespace {
-constexpr std::size_t kBatchSize = 64;
 
-struct LocalCache {
-  OrderPool* pool{};
-  std::vector<Order*> orders;
-};
-
-thread_local LocalCache local_cache;
-
-#if defined(__x86_64__)
-unsigned __int128 pack(Order* pointer, std::uint64_t tag) noexcept {
-  return (static_cast<unsigned __int128>(tag) << 64) |
-         reinterpret_cast<std::uintptr_t>(pointer);
-}
-
-Order* unpack_pointer(unsigned __int128 value) noexcept {
-  return reinterpret_cast<Order*>(static_cast<std::uintptr_t>(value));
-}
-
-std::uint64_t unpack_tag(unsigned __int128 value) noexcept {
-  return static_cast<std::uint64_t>(value >> 64);
-}
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
 #endif
+
+void* map_zeroed(std::size_t bytes) {
+  void* memory = mmap(nullptr, bytes, PROT_READ | PROT_WRITE,
+                      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+  if (memory == MAP_FAILED) throw std::bad_alloc();
+  return memory;
+}
+
+unsigned __int128 pack(const Order* pointer, std::uint64_t tag) noexcept {
+  return (static_cast<unsigned __int128>(tag) << 64) | reinterpret_cast<std::uintptr_t>(pointer);
+}
+
+Order* pointer_of(unsigned __int128 head) noexcept {
+  return reinterpret_cast<Order*>(static_cast<std::uintptr_t>(head));
+}
+
+std::uint64_t tag_of(unsigned __int128 head) noexcept {
+  return static_cast<std::uint64_t>(head >> 64);
+}
+
 }  // namespace
 
-OrderPool::OrderPool(std::size_t capacity) : bytes_(capacity * sizeof(Order)) {
-  int flags = MAP_PRIVATE | MAP_ANON;
-#ifdef MAP_HUGETLB
-  memory_ = mmap(nullptr, bytes_, PROT_READ | PROT_WRITE, flags | MAP_HUGETLB, -1, 0);
-  if (memory_ == MAP_FAILED) memory_ = nullptr;
-#endif
-  if (memory_ == nullptr) {
-    memory_ = mmap(nullptr, bytes_, PROT_READ | PROT_WRITE, flags, -1, 0);
-  }
-  if (memory_ == MAP_FAILED) throw std::bad_alloc();
+thread_local OrderPool::ThreadCache OrderPool::cache_;
 
-  auto* slots = static_cast<Order*>(memory_);
-  for (std::size_t index = 0; index < capacity; ++index) push_central(slots + index);
+OrderPool::ThreadCache::~ThreadCache() {
+  if (owner != nullptr) owner->drain(*this);
+}
+
+OrderPool::OrderPool(std::size_t capacity)
+    : capacity_(capacity),
+      slab_bytes_(capacity * sizeof(Order)),
+      link_bytes_(capacity * sizeof(std::uint32_t)) {
+  if (capacity == 0 || capacity >= UINT32_MAX) throw std::bad_alloc();
+  slab_ = static_cast<Order*>(map_zeroed(slab_bytes_));
+  batch_next_ = static_cast<std::uint32_t*>(map_zeroed(link_bytes_));
+  chain_next_ = static_cast<std::uint32_t*>(map_zeroed(link_bytes_));
 }
 
 OrderPool::~OrderPool() {
-  if (memory_ != nullptr && memory_ != MAP_FAILED) munmap(memory_, bytes_);
-}
-
-Order* OrderPool::create(std::uint64_t reference, Side side, std::uint32_t shares, std::uint32_t price) {
-  auto* slot = static_cast<Order*>(allocate_slot());
-  return ::new (static_cast<void*>(slot)) Order{reference, shares, price, side, nullptr, nullptr};
-}
-
-void* OrderPool::allocate_slot() {
-  if (local_cache.pool != this) {
-    local_cache.orders.clear();
-    local_cache.pool = this;
+  if (cache_.owner == this) {
+    cache_.owner = nullptr;
+    cache_.count = 0;
   }
-  if (local_cache.orders.empty()) refill_local();
-  auto* slot = local_cache.orders.back();
-  local_cache.orders.pop_back();
-  return slot;
+  munmap(slab_, slab_bytes_);
+  munmap(batch_next_, link_bytes_);
+  munmap(chain_next_, link_bytes_);
 }
 
-void OrderPool::destroy(Order* order) noexcept {
-  order->~Order();
-  release_slot(order);
+Order* OrderPool::allocate() {
+  ThreadCache& cache = cache_;
+  if (cache.owner != this) [[unlikely]] adopt(cache);
+  if (cache.count == 0) [[unlikely]] refill(cache);
+  return slot(cache.slots[--cache.count]);
 }
 
-void OrderPool::release_slot(Order* order) noexcept {
-  if (local_cache.pool != this) {
-    push_central(order);
-    return;
+void OrderPool::release(Order* order) noexcept {
+  ThreadCache& cache = cache_;
+  if (cache.owner != this) [[unlikely]] adopt(cache);
+  cache.slots[cache.count++] = index_of(order);
+  if (cache.count == 2 * kBatch) [[unlikely]] {
+    push_batch(cache.slots + kBatch, kBatch);
+    cache.count = kBatch;
   }
-  local_cache.orders.push_back(order);
-  if (local_cache.orders.size() > kBatchSize * 2) {
-    for (std::size_t index = 0; index < kBatchSize; ++index) {
-      push_central(local_cache.orders.back());
-      local_cache.orders.pop_back();
+}
+
+void OrderPool::flush_thread_cache() noexcept {
+  if (cache_.owner != nullptr) cache_.owner->drain(cache_);
+}
+
+void OrderPool::adopt(ThreadCache& cache) noexcept {
+  if (cache.owner != nullptr) cache.owner->drain(cache);
+  cache.owner = this;
+  cache.count = 0;
+}
+
+void OrderPool::drain(ThreadCache& cache) noexcept {
+  for (std::uint32_t begin = 0; begin < cache.count; begin += kBatch) {
+    push_batch(cache.slots + begin, std::min(kBatch, cache.count - begin));
+  }
+  cache.count = 0;
+  cache.owner = nullptr;
+}
+
+void OrderPool::push_batch(const std::uint32_t* slots, std::uint32_t count) noexcept {
+  for (std::uint32_t i = 0; i + 1 < count; ++i) chain_next_[slots[i]] = slots[i + 1] + 1;
+  chain_next_[slots[count - 1]] = 0;
+
+  const std::uint32_t first = slots[0];
+  auto observed = head_.load(std::memory_order_relaxed);
+  for (;;) {
+    const Order* top = pointer_of(observed);
+    const std::uint32_t link = top == nullptr ? 0 : index_of(top) + 1;
+    __atomic_store_n(&batch_next_[first], link, __ATOMIC_RELAXED);
+    if (head_.compare_exchange_weak(observed, pack(slot(first), tag_of(observed) + 1),
+                                    std::memory_order_release, std::memory_order_relaxed)) {
+      return;
     }
   }
 }
 
-void* Order::operator new(std::size_t size) {
-  if (size != sizeof(Order)) throw std::bad_alloc();
-  return OrderPool::default_instance().allocate_slot();
-}
-
-void Order::operator delete(void* pointer) noexcept {
-  OrderPool::default_instance().release_slot(static_cast<Order*>(pointer));
-}
-
-OrderPool& OrderPool::default_instance() {
-  static OrderPool pool;
-  return pool;
-}
-
-void OrderPool::refill_local() {
-  for (std::size_t index = 0; index < kBatchSize; ++index) {
-    if (auto* order = pop_central()) local_cache.orders.push_back(order);
-    else break;
-  }
-  if (local_cache.orders.empty()) throw std::bad_alloc();
-}
-
-Order* OrderPool::pop_central() noexcept {
-#if defined(__x86_64__)
+void OrderPool::refill(ThreadCache& cache) {
   auto observed = head_.load(std::memory_order_acquire);
-  while (auto* pointer = unpack_pointer(observed)) {
-    const auto desired = pack(pointer->next, unpack_tag(observed) + 1);
-    if (head_.compare_exchange_weak(observed, desired, std::memory_order_acq_rel,
-                                    std::memory_order_acquire)) return pointer;
+  while (Order* top = pointer_of(observed)) {
+    // A stale `link` is harmless: if `top` was popped and pushed back meanwhile, its tag moved
+    // on and this CAS fails.
+    const std::uint32_t link = __atomic_load_n(&batch_next_[index_of(top)], __ATOMIC_RELAXED);
+    const Order* next = link == 0 ? nullptr : slot(link - 1);
+    if (head_.compare_exchange_weak(observed, pack(next, tag_of(observed) + 1),
+                                    std::memory_order_acquire, std::memory_order_acquire)) {
+      for (std::uint32_t index = index_of(top) + 1; index != 0; index = chain_next_[index - 1]) {
+        cache.slots[cache.count++] = index - 1;
+      }
+      return;
+    }
   }
-  return nullptr;
-#else
-  std::lock_guard lock(mutex_);
-  if (free_.empty()) return nullptr;
-  auto* order = free_.back();
-  free_.pop_back();
-  return order;
-#endif
-}
 
-void OrderPool::push_central(Order* order) noexcept {
-#if defined(__x86_64__)
-  auto observed = head_.load(std::memory_order_acquire);
-  do {
-    order->next = unpack_pointer(observed);
-  } while (!head_.compare_exchange_weak(observed, pack(order, unpack_tag(observed) + 1),
-                                        std::memory_order_release, std::memory_order_acquire));
-#else
-  std::lock_guard lock(mutex_);
-  free_.push_back(order);
-#endif
+  const std::uint64_t start = carved_.fetch_add(kBatch, std::memory_order_relaxed);
+  if (start >= capacity_) throw std::bad_alloc();
+  const std::uint64_t end = std::min<std::uint64_t>(start + kBatch, capacity_);
+  // Hand out ascending addresses first so a fresh book touches the slab sequentially.
+  for (std::uint64_t index = end; index-- > start;) {
+    cache.slots[cache.count++] = static_cast<std::uint32_t>(index);
+  }
 }
 
 }  // namespace itch
