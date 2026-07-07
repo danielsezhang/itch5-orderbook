@@ -16,8 +16,10 @@ endif()
 
 add_library(itch_book
   src/mapped_file.cpp
+  src/market_replay.cpp
   src/order_book.cpp
   src/order_pool.cpp
+  src/sharded_replay.cpp
 )
 target_include_directories(itch_book PUBLIC include)
 target_compile_features(itch_book PUBLIC cxx_std_20)
@@ -35,9 +37,11 @@ if(ITCH_BUILD_TESTS)
   FetchContent_MakeAvailable(Catch2)
   enable_testing()
   add_executable(itch_tests
+    tests/historical_tests.cpp
     tests/order_book_tests.cpp
     tests/order_pool_tests.cpp
-    tests/parser_tests.cpp)
+    tests/parser_tests.cpp
+    tests/sharded_replay_tests.cpp)
   target_link_libraries(itch_tests PRIVATE itch_book Catch2::Catch2WithMain)
   target_compile_options(itch_tests PRIVATE ${ITCH_WARNINGS})
   target_compile_definitions(itch_tests PRIVATE
@@ -48,7 +52,10 @@ if(ITCH_BUILD_TESTS)
 endif()
 
 if(ITCH_BUILD_BENCHMARKS)
+  add_executable(itch_ingest benchmarks/ingestion_benchmark.cpp)
+  target_link_libraries(itch_ingest PRIVATE itch_book)
   add_executable(itch_alloc_latency benchmarks/alloc_latency.cpp)
   target_link_libraries(itch_alloc_latency PRIVATE itch_book)
+  target_compile_options(itch_ingest PRIVATE ${ITCH_WARNINGS})
   target_compile_options(itch_alloc_latency PRIVATE ${ITCH_WARNINGS})
 endif()
