@@ -51,8 +51,10 @@ ItchStream random_session(unsigned symbols, std::size_t messages, std::uint64_t 
     bool gone = false;
     if (roll < 80) {
       const auto shares = static_cast<std::uint32_t>(1 + rng() % order.shares);
-      if (roll < 65) stream.execute(order.locate, order.reference, shares);
-      else stream.cancel(order.locate, order.reference, shares);
+      if (roll < 65)
+        stream.execute(order.locate, order.reference, shares);
+      else
+        stream.cancel(order.locate, order.reference, shares);
       order.shares -= shares;
       gone = order.shares == 0;
     } else if (roll < 90) {

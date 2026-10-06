@@ -146,12 +146,8 @@ class OrderBook {
     return references_.find(reference);
   }
   // Levels from best to worst; walk level->head via Order::next for queue order.
-  [[nodiscard]] std::vector<LevelView> depth(Side side) const {
-    return side_for(side).levels();
-  }
-  [[nodiscard]] const SideStats& stats(Side side) const noexcept {
-    return side_for(side).stats();
-  }
+  [[nodiscard]] std::vector<LevelView> depth(Side side) const { return side_for(side).levels(); }
+  [[nodiscard]] const SideStats& stats(Side side) const noexcept { return side_for(side).stats(); }
 
  private:
   [[nodiscard]] detail::BookSide& side_for(Side side) noexcept {

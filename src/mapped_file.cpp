@@ -22,7 +22,7 @@ namespace {
 MappedFile::MappedFile(const std::filesystem::path& path) {
   fd_ = open(path.c_str(), O_RDONLY);
   if (fd_ == -1) fail("open", path);
-  struct stat status {};
+  struct stat status{};
   if (fstat(fd_, &status) == -1) {
     reset();
     fail("fstat", path);

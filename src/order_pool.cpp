@@ -13,8 +13,8 @@ namespace {
 #endif
 
 void* map_zeroed(std::size_t bytes) {
-  void* memory = mmap(nullptr, bytes, PROT_READ | PROT_WRITE,
-                      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+  void* memory =
+      mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
   if (memory == MAP_FAILED) throw std::bad_alloc();
   return memory;
 }
@@ -61,14 +61,17 @@ OrderPool::~OrderPool() {
 
 Order* OrderPool::allocate() {
   ThreadCache& cache = cache_;
-  if (cache.owner != this) [[unlikely]] adopt(cache);
-  if (cache.count == 0) [[unlikely]] refill(cache);
+  if (cache.owner != this) [[unlikely]]
+    adopt(cache);
+  if (cache.count == 0) [[unlikely]]
+    refill(cache);
   return slot(cache.slots[--cache.count]);
 }
 
 void OrderPool::release(Order* order) noexcept {
   ThreadCache& cache = cache_;
-  if (cache.owner != this) [[unlikely]] adopt(cache);
+  if (cache.owner != this) [[unlikely]]
+    adopt(cache);
   cache.slots[cache.count++] = index_of(order);
   if (cache.count == 2 * kBatch) [[unlikely]] {
     push_batch(cache.slots + kBatch, kBatch);

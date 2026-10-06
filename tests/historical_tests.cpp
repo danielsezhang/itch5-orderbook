@@ -46,17 +46,20 @@ class DifferentialReplay {
     observe_execution(m.header.locate(), m.order_reference());
     const auto before = anomalies(replay_.stats());
     replay_.on(m);
-    check(m.header.locate(), before, ref(m.header.locate()).reduce(m.order_reference(), m.share_count()));
+    check(m.header.locate(), before,
+          ref(m.header.locate()).reduce(m.order_reference(), m.share_count()));
   }
   void on(const itch::ExecuteWithPrice& m) {
     const auto before = anomalies(replay_.stats());
     replay_.on(m);
-    check(m.header.locate(), before, ref(m.header.locate()).reduce(m.order_reference(), m.share_count()));
+    check(m.header.locate(), before,
+          ref(m.header.locate()).reduce(m.order_reference(), m.share_count()));
   }
   void on(const itch::CancelOrder& m) {
     const auto before = anomalies(replay_.stats());
     replay_.on(m);
-    check(m.header.locate(), before, ref(m.header.locate()).reduce(m.order_reference(), m.share_count()));
+    check(m.header.locate(), before,
+          ref(m.header.locate()).reduce(m.order_reference(), m.share_count()));
   }
   void on(const itch::DeleteOrder& m) {
     const auto before = anomalies(replay_.stats());
@@ -126,7 +129,8 @@ class DifferentialReplay {
     const ReferenceBook& oracle = *refs_[locate];
     if (!same(book->best_bid(), oracle.best(Side::bid)) ||
         !same(book->best_ask(), oracle.best(Side::ask))) {
-      if (++bbo_mismatches <= 5) UNSCOPED_INFO("BBO mismatch at message " << messages << " locate " << locate);
+      if (++bbo_mismatches <= 5)
+        UNSCOPED_INFO("BBO mismatch at message " << messages << " locate " << locate);
     }
     if (++messages % 10'000'000 == 0 && full_diff() != 0) ++full_diff_failures;
   }
@@ -140,7 +144,7 @@ std::filesystem::path sample_path() {
   return ITCH_DEFAULT_SAMPLE;
 }
 
-#define REQUIRE_SAMPLE(path)                                                    \
+#define REQUIRE_SAMPLE(path) \
   if (!std::filesystem::exists(path)) SKIP("historical sample not found: " << (path).string())
 
 }  // namespace
@@ -160,15 +164,19 @@ TEST_CASE("full-day Nasdaq replay matches the reference book at every message", 
   std::printf(
       "historical: %llu messages, %llu order messages, %zu books, %zu open orders\n"
       "  adds=%llu E=%llu C=%llu X=%llu D=%llu U=%llu\n"
-      "  status mismatches=%llu BBO mismatches=%llu full L3 diffs=%llu (failures %llu, final %llu)\n"
+      "  status mismatches=%llu BBO mismatches=%llu full L3 diffs=%llu (failures %llu, final "
+      "%llu)\n"
       "  executions at touch %.4f%%, at touch and queue head %.4f%%\n",
       static_cast<unsigned long long>(parsed), static_cast<unsigned long long>(d.messages),
-      d.replay().book_count(), d.replay().open_orders(),
-      static_cast<unsigned long long>(s.adds), static_cast<unsigned long long>(s.executes),
-      static_cast<unsigned long long>(s.executes_with_price), static_cast<unsigned long long>(s.cancels),
-      static_cast<unsigned long long>(s.deletes), static_cast<unsigned long long>(s.replaces),
-      static_cast<unsigned long long>(d.status_mismatches), static_cast<unsigned long long>(d.bbo_mismatches),
-      static_cast<unsigned long long>(d.full_diffs), static_cast<unsigned long long>(d.full_diff_failures),
+      d.replay().book_count(), d.replay().open_orders(), static_cast<unsigned long long>(s.adds),
+      static_cast<unsigned long long>(s.executes),
+      static_cast<unsigned long long>(s.executes_with_price),
+      static_cast<unsigned long long>(s.cancels), static_cast<unsigned long long>(s.deletes),
+      static_cast<unsigned long long>(s.replaces),
+      static_cast<unsigned long long>(d.status_mismatches),
+      static_cast<unsigned long long>(d.bbo_mismatches),
+      static_cast<unsigned long long>(d.full_diffs),
+      static_cast<unsigned long long>(d.full_diff_failures),
       static_cast<unsigned long long>(final_differences),
       100.0 * static_cast<double>(d.executions_at_touch) / static_cast<double>(d.executions),
       100.0 * static_cast<double>(d.executions_at_queue_head) / static_cast<double>(d.executions));
@@ -182,7 +190,8 @@ TEST_CASE("full-day Nasdaq replay matches the reference book at every message", 
   REQUIRE(d.replay().open_orders() == [&] {
     std::size_t total = 0;
     for (std::uint32_t locate = 0; locate <= UINT16_MAX; ++locate) {
-      if (const auto* book = d.replay().book(static_cast<std::uint16_t>(locate))) total += book->order_count();
+      if (const auto* book = d.replay().book(static_cast<std::uint16_t>(locate)))
+        total += book->order_count();
     }
     return total;
   }());
@@ -197,7 +206,8 @@ TEST_CASE("sharded replay matches the sequential replay book for book mid-sessio
   // Every book is empty after the close, so compare at cut points where the books are full.
   std::vector<std::size_t> cuts;
   {
-    const std::uint64_t total = itch::Parser(file.data(), file.size()).for_each_message([](auto) {});
+    const std::uint64_t total =
+        itch::Parser(file.data(), file.size()).for_each_message([](auto) {});
     std::uint64_t index = 0;
     itch::Parser(file.data(), file.size()).for_each_message([&](const std::byte* message) {
       if (++index == total / 4 || index == total / 2 || index == total * 3 / 4) {

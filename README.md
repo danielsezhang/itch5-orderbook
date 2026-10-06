@@ -178,6 +178,19 @@ cmake -S . -B build-asan -DITCH_SANITIZE=address,undefined && cmake --build buil
 ./build-asan/itch_tests
 ```
 
+## Code formatting
+
+Install `clang-format`, then configure the project as usual. These targets format or check all
+first-party C++ files under `include/`, `src/`, `tests/` and `benchmarks/`:
+
+```sh
+cmake --build build-release --target itch_format
+cmake --build build-release --target itch_format_check
+```
+
+The formatting targets are available only when `clang-format` is on `PATH`; normal builds do not
+require it.
+
 The historical tests are skipped when the sample is missing. Set `ITCH_SAMPLE=<path>` to use a
 different ITCH 5.0 BinaryFILE.
 

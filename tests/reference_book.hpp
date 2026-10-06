@@ -92,8 +92,8 @@ class ReferenceBook {
   using Index = std::unordered_map<std::uint64_t, Location>;
 
   template <typename Levels>
-  static void compare(std::ostringstream& out, const char* name,
-                      const std::vector<LevelView>& fast, const Levels& expected) {
+  static void compare(std::ostringstream& out, const char* name, const std::vector<LevelView>& fast,
+                      const Levels& expected) {
     if (fast.size() != expected.size()) {
       out << name << " levels fast=" << fast.size() << " ref=" << expected.size() << '\n';
       return;
@@ -104,8 +104,8 @@ class ReferenceBook {
       std::uint64_t total = 0;
       for (const auto& resting : queue) total += resting.shares;
       if (view.price != price || view.level->shares != total) {
-        out << name << " level fast=" << view.price << 'x' << view.level->shares
-            << " ref=" << price << 'x' << total << '\n';
+        out << name << " level fast=" << view.price << 'x' << view.level->shares << " ref=" << price
+            << 'x' << total << '\n';
         return;
       }
       const Order* order = view.level->head;

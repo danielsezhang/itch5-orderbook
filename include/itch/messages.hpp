@@ -200,8 +200,10 @@ struct [[gnu::packed]] ReplaceOrder {
     case MessageType::order_executed_with_price:
     case MessageType::order_cancel:
     case MessageType::order_delete:
-    case MessageType::order_replace: return true;
-    default: return false;
+    case MessageType::order_replace:
+      return true;
+    default:
+      return false;
   }
 }
 

@@ -25,13 +25,26 @@ template <typename Visitor>
 void dispatch_order_message(const std::byte* message, Visitor& visitor) {
   switch (static_cast<MessageType>(*message)) {
     case MessageType::add_order:
-    case MessageType::add_order_attributed: deliver<AddOrder>(message, visitor); break;
-    case MessageType::order_executed: deliver<ExecuteOrder>(message, visitor); break;
-    case MessageType::order_executed_with_price: deliver<ExecuteWithPrice>(message, visitor); break;
-    case MessageType::order_cancel: deliver<CancelOrder>(message, visitor); break;
-    case MessageType::order_delete: deliver<DeleteOrder>(message, visitor); break;
-    case MessageType::order_replace: deliver<ReplaceOrder>(message, visitor); break;
-    default: break;
+    case MessageType::add_order_attributed:
+      deliver<AddOrder>(message, visitor);
+      break;
+    case MessageType::order_executed:
+      deliver<ExecuteOrder>(message, visitor);
+      break;
+    case MessageType::order_executed_with_price:
+      deliver<ExecuteWithPrice>(message, visitor);
+      break;
+    case MessageType::order_cancel:
+      deliver<CancelOrder>(message, visitor);
+      break;
+    case MessageType::order_delete:
+      deliver<DeleteOrder>(message, visitor);
+      break;
+    case MessageType::order_replace:
+      deliver<ReplaceOrder>(message, visitor);
+      break;
+    default:
+      break;
   }
 }
 

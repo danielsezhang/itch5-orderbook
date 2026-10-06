@@ -39,7 +39,8 @@ TEST_CASE("slots released on one thread are reused on another through the shared
   itch::OrderPool pool(8 * itch::OrderPool::kBatch);
   std::vector<itch::Order*> slots;
   std::thread producer([&] {
-    for (int i = 0; i < 3 * static_cast<int>(itch::OrderPool::kBatch); ++i) slots.push_back(pool.allocate());
+    for (int i = 0; i < 3 * static_cast<int>(itch::OrderPool::kBatch); ++i)
+      slots.push_back(pool.allocate());
     // Thread exit drains nothing here: every slot is still live.
   });
   producer.join();

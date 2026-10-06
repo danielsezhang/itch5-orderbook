@@ -21,10 +21,9 @@ constexpr int kSamplesPerThread = 2'000'000;
 constexpr int kLiveWindow = 512;
 
 std::uint64_t now_ns() {
-  return static_cast<std::uint64_t>(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
-          .count());
+  return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now().time_since_epoch())
+                                        .count());
 }
 
 double percentile(const std::vector<double>& sorted, double p) {

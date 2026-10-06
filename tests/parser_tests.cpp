@@ -26,15 +26,20 @@ struct Recorder {
                      " loc" + std::to_string(m.header.locate()));
   }
   void on(const itch::ExecuteOrder& m) {
-    events.push_back("E" + std::to_string(m.order_reference()) + "/" + std::to_string(m.share_count()));
+    events.push_back("E" + std::to_string(m.order_reference()) + "/" +
+                     std::to_string(m.share_count()));
   }
   void on(const itch::ExecuteWithPrice& m) {
-    events.push_back("C" + std::to_string(m.order_reference()) + "@" + std::to_string(m.price_ticks()));
+    events.push_back("C" + std::to_string(m.order_reference()) + "@" +
+                     std::to_string(m.price_ticks()));
   }
   void on(const itch::CancelOrder& m) {
-    events.push_back("X" + std::to_string(m.order_reference()) + "/" + std::to_string(m.share_count()));
+    events.push_back("X" + std::to_string(m.order_reference()) + "/" +
+                     std::to_string(m.share_count()));
   }
-  void on(const itch::DeleteOrder& m) { events.push_back("D" + std::to_string(m.order_reference())); }
+  void on(const itch::DeleteOrder& m) {
+    events.push_back("D" + std::to_string(m.order_reference()));
+  }
   void on(const itch::ReplaceOrder& m) {
     events.push_back("U" + std::to_string(m.original_order_reference()) + ">" +
                      std::to_string(m.replacement_order_reference()) + "@" +
@@ -55,9 +60,13 @@ ItchStream every_order_message() {
   return stream;
 }
 
-const std::vector<std::string> kExpected{
-    "AB42/100@12345 loc7", "AS72623859790382856/5@4000000000 loc7", "E42/30", "C42@12300",
-    "X42/10", "U42>43@12400", "D43"};
+const std::vector<std::string> kExpected{"AB42/100@12345 loc7",
+                                         "AS72623859790382856/5@4000000000 loc7",
+                                         "E42/30",
+                                         "C42@12300",
+                                         "X42/10",
+                                         "U42>43@12400",
+                                         "D43"};
 
 }  // namespace
 
@@ -83,7 +92,8 @@ TEST_CASE("parser reads a memory-mapped file without copying") {
   const auto stream = every_order_message();
   const auto path = std::filesystem::temp_directory_path() / "itch_parser_test.bin";
   std::ofstream(path, std::ios::binary)
-      .write(reinterpret_cast<const char*>(stream.data()), static_cast<std::streamsize>(stream.size()));
+      .write(reinterpret_cast<const char*>(stream.data()),
+             static_cast<std::streamsize>(stream.size()));
 
   {
     const itch::MappedFile file(path);

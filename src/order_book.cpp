@@ -156,8 +156,14 @@ void BookSide::append(Order& order) {
 void BookSide::unlink(Order& order) noexcept {
   const auto slot = window_slot(order.price);
   PriceLevel& level = slot ? window_[*slot] : overflow_.find(order.price)->second;
-  if (order.prev != nullptr) order.prev->next = order.next; else level.head = order.next;
-  if (order.next != nullptr) order.next->prev = order.prev; else level.tail = order.prev;
+  if (order.prev != nullptr)
+    order.prev->next = order.next;
+  else
+    level.head = order.next;
+  if (order.next != nullptr)
+    order.next->prev = order.prev;
+  else
+    level.tail = order.prev;
   level.shares -= order.shares;
   if (!level.empty()) return;
   if (slot) {

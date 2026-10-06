@@ -22,12 +22,16 @@ namespace {
 // Folds every decoded field into a checksum so the compiler cannot skip the byte swaps.
 struct DecodeOnly {
   std::uint64_t checksum{};
-  void on(const itch::AddOrder& m) { checksum += m.order_reference() + m.share_count() + m.price_ticks(); }
+  void on(const itch::AddOrder& m) {
+    checksum += m.order_reference() + m.share_count() + m.price_ticks();
+  }
   void on(const itch::ExecuteOrder& m) { checksum += m.order_reference() + m.share_count(); }
   void on(const itch::ExecuteWithPrice& m) { checksum += m.order_reference() + m.price_ticks(); }
   void on(const itch::CancelOrder& m) { checksum += m.order_reference() + m.share_count(); }
   void on(const itch::DeleteOrder& m) { checksum += m.order_reference(); }
-  void on(const itch::ReplaceOrder& m) { checksum += m.replacement_order_reference() + m.price_ticks(); }
+  void on(const itch::ReplaceOrder& m) {
+    checksum += m.replacement_order_reference() + m.price_ticks();
+  }
 };
 
 template <typename Work>
@@ -49,7 +53,8 @@ double median_seconds(int runs, Run&& run) {
 
 void report(const char* stage, double seconds, std::uint64_t messages, double baseline = 0) {
   std::printf("%-22s %7.3f s  %6.1f M msg/s  %6.1f ns/msg", stage, seconds,
-              static_cast<double>(messages) / seconds / 1e6, seconds * 1e9 / static_cast<double>(messages));
+              static_cast<double>(messages) / seconds / 1e6,
+              seconds * 1e9 / static_cast<double>(messages));
   if (baseline > 0) std::printf("  %4.2fx", baseline / seconds);
   std::printf("\n");
 }
@@ -86,7 +91,8 @@ int main(int argc, char** argv) {
   const std::uint64_t messages = parser.parse(warm_up);
 
   DecodeOnly decoder;
-  const double parse_s = median_seconds(runs, [&] { return seconds([&] { parser.parse(decoder); }); });
+  const double parse_s =
+      median_seconds(runs, [&] { return seconds([&] { parser.parse(decoder); }); });
 
   itch::ReplayStats stats{};
   double flat_share = 0;
@@ -122,14 +128,16 @@ int main(int argc, char** argv) {
     std::snprintf(stage, sizeof(stage), "sharded L3, %u shards", shards);
     report(stage, sharded_s, messages, sequential_s);
     const auto [lightest, busiest] = std::minmax_element(routed.begin(), routed.end());
-    std::printf("%-22s busiest shard %.1f%% of order messages, lightest %.1f%%\n", "",
-                100.0 * static_cast<double>(*busiest) / static_cast<double>(stats.order_messages()),
-                100.0 * static_cast<double>(*lightest) / static_cast<double>(stats.order_messages()));
+    std::printf(
+        "%-22s busiest shard %.1f%% of order messages, lightest %.1f%%\n", "",
+        100.0 * static_cast<double>(*busiest) / static_cast<double>(stats.order_messages()),
+        100.0 * static_cast<double>(*lightest) / static_cast<double>(stats.order_messages()));
   }
 
   rusage usage{};
   getrusage(RUSAGE_SELF, &usage);
-  std::printf("\nmax RSS       %.0f MB\n", static_cast<double>(usage.ru_maxrss) / 1048576.0);  // bytes on macOS
+  std::printf("\nmax RSS       %.0f MB\n",
+              static_cast<double>(usage.ru_maxrss) / 1048576.0);  // bytes on macOS
   std::printf("checksum      %llu\n", static_cast<unsigned long long>(decoder.checksum));
   return 0;
 }

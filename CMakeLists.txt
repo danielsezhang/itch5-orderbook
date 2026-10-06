@@ -59,3 +59,31 @@ if(ITCH_BUILD_BENCHMARKS)
   target_compile_options(itch_ingest PRIVATE ${ITCH_WARNINGS})
   target_compile_options(itch_alloc_latency PRIVATE ${ITCH_WARNINGS})
 endif()
+
+file(GLOB_RECURSE ITCH_FORMAT_FILES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
+)
+
+find_program(ITCH_CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+if(ITCH_CLANG_FORMAT_EXECUTABLE)
+  add_custom_target(itch_format
+    COMMAND "${ITCH_CLANG_FORMAT_EXECUTABLE}" -i ${ITCH_FORMAT_FILES}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Formatting ITCH orderbook C++ sources"
+    VERBATIM)
+  add_custom_target(itch_format_check
+    COMMAND "${ITCH_CLANG_FORMAT_EXECUTABLE}" --dry-run --Werror ${ITCH_FORMAT_FILES}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Checking ITCH orderbook C++ formatting"
+    VERBATIM)
+else()
+  message(STATUS "clang-format not found; ITCH formatting targets are unavailable")
+endif()

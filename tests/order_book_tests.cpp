@@ -11,7 +11,9 @@ using itch::Side;
 using itch::Status;
 
 namespace {
-constexpr std::uint32_t dollars(double value) { return static_cast<std::uint32_t>(value * 10'000 + 0.5); }
+constexpr std::uint32_t dollars(double value) {
+  return static_cast<std::uint32_t>(value * 10'000 + 0.5);
+}
 
 std::vector<std::uint64_t> queue(const OrderBook& book, Side side, std::size_t level_index) {
   std::vector<std::uint64_t> references;
@@ -110,13 +112,13 @@ TEST_CASE("window re-centres when the touch moves away and keeps one level per p
     REQUIRE(book.add(id, side, 100, price) == reference.add(id, side, 100, price));
     ++id;
   };
-  add(Side::bid, dollars(0.01));    // stub quote anchors the first window
-  add(Side::bid, dollars(20.00));   // new best far away: window must follow the touch
+  add(Side::bid, dollars(0.01));   // stub quote anchors the first window
+  add(Side::bid, dollars(20.00));  // new best far away: window must follow the touch
   add(Side::bid, dollars(19.99));
   REQUIRE(book.stats(Side::bid).recenters == 2);
   REQUIRE(book.stats(Side::bid).window_inserts == 3);
-  add(Side::bid, dollars(25.00));   // moves up again, 19.99/20.00 migrate to overflow
-  add(Side::bid, dollars(20.00));   // joins the existing 20.00 queue, wherever it lives
+  add(Side::bid, dollars(25.00));  // moves up again, 19.99/20.00 migrate to overflow
+  add(Side::bid, dollars(20.00));  // joins the existing 20.00 queue, wherever it lives
   REQUIRE(reference.diff(book).empty());
   REQUIRE(book.depth(Side::bid).size() == 4);
   REQUIRE(queue(book, Side::bid, 1) == std::vector<std::uint64_t>{2, 5});
@@ -126,8 +128,10 @@ TEST_CASE("off-grid prices at or above $1 are kept in exact price order") {
   itch::OrderPool pool(1 << 16);
   itch::testing::ReferenceBook reference;
   OrderBook book(pool, 64);
-  for (const auto& [id, price] : {std::pair{1u, dollars(10.00)}, {2u, dollars(10.00) + 50},
-                                 {3u, dollars(10.01)}, {4u, dollars(9.99) + 1}}) {
+  for (const auto& [id, price] : {std::pair{1u, dollars(10.00)},
+                                  {2u, dollars(10.00) + 50},
+                                  {3u, dollars(10.01)},
+                                  {4u, dollars(9.99) + 1}}) {
     REQUIRE(book.add(id, Side::bid, 10, price) == reference.add(id, Side::bid, 10, price));
   }
   REQUIRE(book.best_bid().price == dollars(10.01));

@@ -79,7 +79,8 @@ class ItchStream {
     bytes_.push_back(static_cast<std::byte>(length));
     const auto* raw = reinterpret_cast<const std::byte*>(&message);
     bytes_.insert(bytes_.end(), raw, raw + std::min(length, sizeof(Message)));
-    if (length > sizeof(Message)) bytes_.insert(bytes_.end(), length - sizeof(Message), std::byte{0});
+    if (length > sizeof(Message))
+      bytes_.insert(bytes_.end(), length - sizeof(Message), std::byte{0});
     ++messages_;
     return *this;
   }

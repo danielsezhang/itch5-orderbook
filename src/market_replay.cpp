@@ -21,17 +21,27 @@ MarketReplay::MarketReplay(OrderPool& pool, std::uint32_t window_levels)
 
 OrderBook& MarketReplay::book_for(std::uint16_t locate) {
   auto& book = books_[locate];
-  if (!book) [[unlikely]] book = std::make_unique<OrderBook>(pool_, window_levels_);
+  if (!book) [[unlikely]]
+    book = std::make_unique<OrderBook>(pool_, window_levels_);
   return *book;
 }
 
 void MarketReplay::record(Status status) noexcept {
   switch (status) {
-    case Status::ok: break;
-    case Status::unknown_reference: ++stats_.unknown_reference; break;
-    case Status::duplicate_reference: ++stats_.duplicate_reference; break;
-    case Status::exceeds_open_shares: ++stats_.exceeds_open_shares; break;
-    case Status::invalid: ++stats_.invalid; break;
+    case Status::ok:
+      break;
+    case Status::unknown_reference:
+      ++stats_.unknown_reference;
+      break;
+    case Status::duplicate_reference:
+      ++stats_.duplicate_reference;
+      break;
+    case Status::exceeds_open_shares:
+      ++stats_.exceeds_open_shares;
+      break;
+    case Status::invalid:
+      ++stats_.invalid;
+      break;
   }
 }
 
@@ -48,20 +58,20 @@ void MarketReplay::on(const AddOrder& message) {
 
 void MarketReplay::on(const ExecuteOrder& message) {
   ++stats_.executes;
-  record(book_for(message.header.locate())
-             .execute(message.order_reference(), message.share_count()));
+  record(
+      book_for(message.header.locate()).execute(message.order_reference(), message.share_count()));
 }
 
 void MarketReplay::on(const ExecuteWithPrice& message) {
   ++stats_.executes_with_price;
-  record(book_for(message.header.locate())
-             .execute(message.order_reference(), message.share_count()));
+  record(
+      book_for(message.header.locate()).execute(message.order_reference(), message.share_count()));
 }
 
 void MarketReplay::on(const CancelOrder& message) {
   ++stats_.cancels;
-  record(book_for(message.header.locate())
-             .cancel(message.order_reference(), message.share_count()));
+  record(
+      book_for(message.header.locate()).cancel(message.order_reference(), message.share_count()));
 }
 
 void MarketReplay::on(const DeleteOrder& message) {
